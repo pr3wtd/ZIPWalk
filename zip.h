@@ -81,5 +81,6 @@ void show_operations();
 void execute_operation(file_str *file_list, int file, int choice, int file_number);
 int search_EOCD(FILE *p, int file_size, int EOCD_SIZE);
 int choose_operation(int operations);
+void printtext(char *text, int size);
 
 #endif

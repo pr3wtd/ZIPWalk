@@ -22,6 +22,13 @@ void print_charstring(char *a){ // check the lenght of the name to avoid null by
 	printf("\n");
 }
 
+void printtext(char *text, int size){
+	int i;
+	for(i=0; i < size; i++){
+		putchar(*(text + i));
+	}
+}
+
 void print_EOCD(EOCD_str *ptr){
 	puts("------END OF CENTRAL DIRECTORY------\n\n");
 	printf("# of disk: " "%" PRIu16 "\n", ptr->number_of_disk);
@@ -55,6 +62,7 @@ void print_CDH(CDH_str *ptr){
 }
 
 void print_LFH(LFH_str *ptr){
+	puts("------LOCAL FILE HEADER------\n");
 	printf("Version needed to extract  : " "%" PRIu16 "\n", ptr->version_extract);
 	printf("General purpose bit flag : " "%" PRIu16 "\n", ptr->bit_flag);
 	printf("Compression method : " "%" PRIu16 "\n", ptr->compression);
@@ -184,9 +192,19 @@ void execute_operation(file_str *file_list, int file, int choice, int file_numbe
 			break;
 		case 1 : 
 			print_CDH(&(file_list[file].CDH));
+			puts("#### CDH NAME #####");
+			print_charstring(file_list[file].CDH_name);
+			puts("#### CDH COMMENT #####");
+			printtext(file_list[file].CDH_comment, file_list[file].CDH.comment_len);
+			puts("#### CDH EXTRA ####");
+			printtext(file_list[file].CDH_extra, file_list[file].CDH.extra_len);
 			break;
 		case 2 :
 			print_LFH(&(file_list[file].LFH));
+			puts("\n#### LFH NAME #####");
+			print_charstring(file_list[file].LFH_name);
+			puts("#### LFH EXTRA #####");
+			printtext(file_list[file].LFH_extra, file_list[file].LFH.extra_len);
 			break;
 		case 3 : 
 			check_redundancy(&(file_list[file].CDH), &(file_list[file].LFH));

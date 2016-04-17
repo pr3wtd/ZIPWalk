@@ -2,10 +2,10 @@
 [ONGOING PROJECT]</br>
 <b>View and analyze the structure of ZIP file</b>
 
-The main goal of the program is detect steganography in ZIP files.
+The main goal of the program is to detect steganography in ZIP files.
 
 Structure of the ZIP archive is not strictly defined so it can contain hidden malware.</br>
-Most of AV software implements support of ZIP in End-first approach meaning that it looks for the End Of Central Directory(EOCD) located at the end of the file. EOCD keeps pointer on the CDH records table which should contain information about the each file in ZIP. However there are some steganography techniques that can make file undetectable.<br>
+Most of AV software implements support of ZIP in End-first approach meaning that it looks for the End Of Central Directory(EOCD) located at the end of the file. EOCD keeps pointer on the CDH records which should contain information about each file in ZIP. However there are some steganography techniques that can make file undetectable.<br>
 
 With this piece of software I try to solve that issue.
 

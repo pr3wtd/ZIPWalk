@@ -9,7 +9,7 @@ Most of AV software implements support of ZIP in End-first approach meaning that
 
 With this piece of software I try to solve that issue.
 
-To do :
-1) implement different steganography detectors in ZIP archives
-2) create a real built-in ZIP structure and search for multiple file signatures in "free space" 
+To do :<br>
+1) implement different steganography detectors in ZIP archives<br>
+2) create a real built-in ZIP structure and search for multiple file signatures in "free space"<br>
 3) make GUI

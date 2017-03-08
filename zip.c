@@ -4,97 +4,19 @@
 #include <windows.h>
 #include <inttypes.h>
 #include <stdbool.h>
+#include <sys/stat.h>
 
 #pragma pack(1)
 
+#include "components.h"
 #include "zip.h"
+#include "view.h"
+#include "parse.h"
 
-void print(int a){ // prints an integer
+struct stat st;
+int *CDH_offsets;
+int *LFH_offsets;
 
-	printf("%d\n", a);
-}
-
-void print_charstring(char *a){ // check the lenght of the name to avoid null byte attack
-	char *pos = a;
-	while(*pos != '\0'){
-		printf("%c", *(pos++));
-	}
-	printf("\n");
-}
-
-void printtext(char *text, int size){
-	int i;
-	for(i=0; i < size; i++){
-		putchar(*(text + i));
-	}
-}
-
-void print_EOCD(EOCD_str *ptr){
-	puts("------END OF CENTRAL DIRECTORY------\n\n");
-	printf("# of disk: " "%" PRIu16 "\n", ptr->number_of_disk);
-	printf("# of disk with the start of central directory: " "%" PRIu16 "\n", ptr->number_of_disk_CDH);
-	printf("# of entries in the central directory on this disk: " "%" PRIu16 "\n", ptr->number_of_entries_disk);
-	printf("# of entries in the central directory: " "%" PRIu16 "\n", ptr->number_of_entries);
-	printf("Size of the CDH: " "%" PRIu32 "\n", ptr->CDH_size);
-	printf("CDH offset with respect to the starting disk number: " "%" PRIu32 "\n", ptr->CDH_offset);
-}
-
-void print_CDH(CDH_str *ptr){
-	puts("------CENTRAL DIRECTORY HEADER------\n");
-	printf("Version made by : " "%" PRIu16 "\n\n", ptr->version);
-	puts("---Redundant data from LFH header---");
-	printf("Version needed to extract  : " "%" PRIu16 "\n", ptr->version_extract);
-	printf("General purpose bit flag : " "%" PRIu16 "\n", ptr->bit_flag);
-	printf("Compression method : " "%" PRIu16 "\n", ptr->compression);
-	printf("Last mod file time : " "%" PRIu16 "\n", ptr->last_mod_time);
-	printf("Last mod file date : " "%" PRIu16 "\n", ptr->last_mod_date);
-	printf("CRC-32 : " "%" PRIu32 "\n", ptr->crc32);
-	printf("Compressed size : " "%" PRIu32 "\n", ptr->compr_size);
-	printf("Uncompressed size : " "%" PRIu32 "\n", ptr->uncompr_size);
-	printf("File name length : " "%" PRIu16 "\n", ptr->file_len);
-	printf("Extra field length : " "%" PRIu16 "\n", ptr->extra_len);
-	puts("---End of redundant data---\n");
-	printf("File comment length : " "%" PRIu16 "\n", ptr->comment_len);
-	printf("Disk number start : " "%" PRIu16 "\n", ptr->disk_number);
-	printf("Internal file attributes : " "%" PRIu16 "\n", ptr->inter_attr);
-	printf("External file attributes : " "%" PRIu32 "\n", ptr->exter_attr);
-	printf("Relative OFFSET of local header : " "%" PRIu32 "\n\n", ptr->LFH_offset);
-}
-
-void print_LFH(LFH_str *ptr){
-	puts("------LOCAL FILE HEADER------\n");
-	printf("Version needed to extract  : " "%" PRIu16 "\n", ptr->version_extract);
-	printf("General purpose bit flag : " "%" PRIu16 "\n", ptr->bit_flag);
-	printf("Compression method : " "%" PRIu16 "\n", ptr->compression);
-	printf("Last mod file time : " "%" PRIu16 "\n", ptr->last_mod_time);
-	printf("Last mod file date : " "%" PRIu16 "\n", ptr->last_mod_date);
-	printf("CRC-32 : " "%" PRIu32 "\n", ptr->crc32);
-	printf("Compressed size : " "%" PRIu32 "\n", ptr->compr_size);
-	printf("Uncompressed size : " "%" PRIu32 "\n", ptr->uncompr_size);
-	printf("File name length : " "%" PRIu16 "\n", ptr->file_len);
-	printf("Extra field length : " "%" PRIu16 "\n", ptr->extra_len);
-}
-
-// function looks for EOCD ( End first method )
-int search_EOCD(FILE *p, int file_size, int EOCD_SIZE){ 
-	
-	char *ptr;
-	char *iobuf = (char *)malloc(EOCD_SIZE*sizeof(char));
-	fseek(p, -(EOCD_SIZE),SEEK_END);
-	fread(iobuf, 1, EOCD_SIZE, p);
-	char *magic = "PK\5\6";
-	int EOCD_offset = 0;
-
-	for(ptr = (iobuf+(EOCD_SIZE-22)); ptr >= iobuf; ptr-=4){
-		if(memcmp(magic, ptr, 4)==0){
-			EOCD_offset =  file_size-(EOCD_SIZE-(ptr-iobuf));
-			break;
-		}
-	}
-
-	free(iobuf);
-	return EOCD_offset;
-}
 
 // this function checks the redundant data from CDH and LFH/ one can determine whether the file is corrupted or some steganography technique has been used
 bool check_redundancy(CDH_str *CDH, LFH_str *LFH){ 
@@ -113,7 +35,7 @@ bool check_redundancy(CDH_str *CDH, LFH_str *LFH){
 	if(!check){
 		extra_check = (CDH->extra_len - LFH->extra_len);
 		if(extra_check){
-			puts("Extra info does not match");
+			puts("Extra info does not match. Else is fine.");
 			return false;
 		}
 		else{
@@ -128,14 +50,14 @@ bool check_redundancy(CDH_str *CDH, LFH_str *LFH){
 // function checks whether the file name length is not a null byte
 bool check_null(char *str){ 
 	if(strlen(str)){
-		puts("Name correct");
 		return true;
 	}
 	else{
-		puts("Null byte detected");
+		puts("\t[!!!] Null byte detected [!!!]");
 		return false;	
 	}
 }
+
 
 // prints menu with all the files in the ZIP
 void file_menu(file_str *file_list, int file_number){ 
@@ -143,13 +65,38 @@ void file_menu(file_str *file_list, int file_number){
 	int i = 0;
 	puts("[0] Print EOCD structure");
 	puts("#### FILES IN THE ZIP FILE ####");
+	// if it is a large zip then write to a txt file (more than 20 entries)
+	if(file_number > 20)
+	{
+		if(stat("choice.txt",&st)){ // check if the file exists
+		FILE* file = fopen("choice.txt","w");
+		puts("Creating a file");
+		while(i < file_number){
+			fprintf(file, "[%d] ", i+1);
+			fprintf(file, (file_list + i)->CDH_name);
+			fprintf(file, "\n");
+			/*fprintf(file, "\n\tCDH EXTRA : ");
+			if((file_list + i)->CDH.extra_len){
+				fwrite((file_list + i)->CDH_extra, sizeof(char), (file_list + i)->CDH.extra_len, file);
+				fprintf(file,"\n");
+			}*/
+			i++;
+		}
+		fclose(file);
+		puts("*** CHOICES HAVE BEEN WRITTEN TO TXT FILE ***");
+		}
+	}
+	else
+	{
 	while(i < file_number){
 		printf("[%d] ", i+1);
-		print_charstring((file_list + i)->CDH_name);
+		if(check_null((file_list + i)->CDH_name))
+			print_charstring((file_list + i)->CDH_name);
 		i++;
 	}
+	}
 	puts("###############################");
-	printf("[%d] Exit\n", i+1);
+	printf("[%d] Exit\n", file_number+1);
 }
 
 // shows two filenames that should be the same
@@ -176,11 +123,6 @@ int choose_operation(int operations){
 		scanf("%d", &choice);
 	}	
 	return choice; 
-}
-
-void clear(){
-	system("cls");
-	fflush(stdin);	
 }
 
 // executes an operation
@@ -218,6 +160,13 @@ void execute_operation(file_str *file_list, int file, int choice, int file_numbe
 #define EOCD_SIZE 65557
 #define OPERATIONS 4
 
+// 0 -> unchanged
+// 1 -> changed due to CDH
+// 2 -> changed due to LFH
+// 3 -> changed due to EOCD
+unsigned int changed_file_number = 0;
+
+
 int main(int argc,char *argv[]){
 
 	char buffer[256];
@@ -243,15 +192,19 @@ int main(int argc,char *argv[]){
 	int file_size = ftell(p);
 	fseek(p, 0 , SEEK_SET);
 	
-
+	int size_of_EOCD = 0;
+	if(file_size < EOCD_SIZE){ size_of_EOCD = file_size; }
+	else{ size_of_EOCD = EOCD_SIZE; }
+	
 	// ------- EOCD ------- //
 	
 	EOCD_str EOCD;
-	int EOCD_offset = search_EOCD(p,file_size, EOCD_SIZE);
+	int EOCD_offset = search_EOCD(p,file_size, size_of_EOCD); // search EOCD offset in the file
+	EOCD = read_EOCD(p,EOCD_offset);
 	int i;
-	fseek(p, EOCD_offset+4, SEEK_SET);	
+	/*fseek(p, EOCD_offset+4, SEEK_SET);	
 	fread(&EOCD, 1, sizeof(EOCD), p);
-	
+	*/
 	// --END EOCD PROCESSING--- //
 	
 	int file_number = EOCD.number_of_entries; // should equal to the number of files in the ZIP archive
@@ -267,14 +220,22 @@ int main(int argc,char *argv[]){
 		return -1;
 	}
 
+	// Values that will be used to determine ZIP integrity
+	CDH_offsets = (int*)malloc((file_number) * sizeof(int));
+	LFH_offsets = (int*)malloc((file_number) * sizeof(int));
+
  	// -------- CDH -------- //
 	
+	//read_CDHs(p,&file_list,EOCD.CDH_offset,file_number);
 	uint32_t sig;
+
 	fseek(p, EOCD.CDH_offset, SEEK_SET);
 
 	for(i=0; i<file_number; i++){
 		fread(&sig, 1, sizeof(sig), p);
 		if(sig == CENTRAL_DIRECTORY_SIG){ // CDH signature
+			//*(CDH_offsets + i) = (ftell(p) - sizeof(sig));
+			//print(*(CDH_offsets +i));
 			fread(&((file_list+i)->CDH), 1, sizeof(CDH_str), p); 
 			memset(&sig, 0, 4); // clear the signature
 				
@@ -294,18 +255,26 @@ int main(int argc,char *argv[]){
 			}
 		else{
 			printf("Warning : [%d] CDH record shoud start at this point but it does not : %ld\n", i, ftell(p));
+			printf("Stop processing CDH files. Changing number of files from %d to %d\n", file_number,i);
+		//	changed_file_number = 1;
+			file_number = i;
+		//	puts("Press any key to continue");
+			break;
 			}
 		}
 
-	int t = 0;
-
+	/*int t = 0;
+	
 	while(t < file_number){
 		print_charstring(file_list[t].CDH_name);
 		t++;
 	}
+	*/
 
 	
 	// -------- LFH -------- //
+	
+	//read_LFHs(p, &file_list,file_number);
 	for(i = 0; i < file_number ; i++){
 		fseek(p, (long)((file_list + i)->CDH.LFH_offset), SEEK_SET);
 		fread(&sig, 1,  sizeof(sig), p);
@@ -322,7 +291,8 @@ int main(int argc,char *argv[]){
 		else{
 			printf("Warning : [%d] LFH record shoud start at this point but it does not : %ld\n", i, ftell(p));
 		}	
-	}	
+	}
+	
 
 	int choice = 0;
 	int choice1 = 0; 
@@ -333,19 +303,37 @@ int main(int argc,char *argv[]){
 	file_menu(file_list, file_number);
 	scanf("%d", &choice);
 	
-	if((choice < 0) || (choice > (file_number+1)))
+	if((choice < 0) || (choice > (file_number+1))) // WRONG CHOICE
 	{
 		continue;
 	}	
-	if(choice == 0){
+	if(choice == 0){ // PRINT EOCD
 		clear();
 		print_EOCD(&EOCD);
 		getchar();
 		puts("Enter to continue");
 		continue;
 	}	
-	if(choice == (file_number+1)){
-		exit(1);
+	if(choice == (file_number+1)){ // EXIT PROGRAM
+
+		// FREE ALLOCATED MEMORY //
+	
+		for(i=0; i < file_number ; i++)
+		{
+		free(file_list[i].CDH_name);
+		free(file_list[i].CDH_extra);
+		free(file_list[i].CDH_comment);
+		}	
+
+		free(file_list);
+
+		// FREE NEW
+		free(CDH_offsets);
+		free(LFH_offsets);
+
+		remove("choice.txt");
+		fclose(p);
+		return 0;
 	}
 
 	while(true){
@@ -361,8 +349,9 @@ int main(int argc,char *argv[]){
 	getchar();
 		}
 	}
-	
-	getchar();
+
+	/*
+	EXIT IN THE MENU
 
 	// FREE ALLOCATED MEMORY //
 	
@@ -373,8 +362,8 @@ int main(int argc,char *argv[]){
 	}	
 
 	free(file_list);
-
+	remove("choice.txt");
 	fclose(p);
-
+	*/
 	return 0;
 }
